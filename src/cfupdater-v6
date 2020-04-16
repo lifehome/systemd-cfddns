@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Forked by benkulbertis/cloudflare-update-record.sh
+# CHANGE THESE
+auth_email="john.appleseed@example.org"            # The email used to login 'https://dash.cloudflare.com'
+auth_key="f1nd7h47fuck1n6k3y1ncl0udfl4r3c0n50l3"   # Top right corner, "My profile" > "Global API Key"
+zone_identifier="f1nd7h3fuck1n6z0n31d3n71f13r4l50" # Can be found in the "Overview" tab of your domain
+record_name="ipv6.example.org"                     # Which record you want to be synced
+
+# DO NOT CHANGE LINES BELOW
+ip=$(curl -s https://ipv6.icanhazip.com/)
+
+# SCRIPT START
+echo "[Cloudflare DDNS] Check Initiated"
+
+# Seek for the record
+record=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_identifier/dns_records?name=$record_name" -H "X-Auth-Email: $auth_email" -H "X-Auth-Key: $auth_key" -H "Content-Type: application/json")
+
+# Can't do anything without the record
+if [[ $record == *"\"count\":0"* ]]; then
+  >&2 echo -e "[Cloudflare DDNS] Record does not exist, perhaps create one first?"
+  exit 1
+fi
+
+# Set existing IP address from the fetched record
+old_ip=$(echo "$record" | grep -Po '(?<="content":")[^"]*' | head -1)
+
+# Compare if they're the same
+if [ $ip == $old_ip ]; then
+  echo "[Cloudflare DDNS] IP has not changed." | systemd-cat -p notice
+  exit 0
+fi
+
+# Set the record identifier from result
+record_identifier=$(echo "$record" | grep -Po '(?<="id":")[^"]*' | head -1)
+
+# The execution of update
+update=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_identifier/dns_records/$record_identifier" -H "X-Auth-Email: $auth_email" -H "X-Auth-Key: $auth_key" -H "Content-Type: application/json" --data "{\"id\":\"$zone_identifier\",\"type\":\"AAAA\",\"proxied\":false,\"name\":\"$record_name\",\"content\":\"$ip\",\"ttl\":120}")
+
+# The moment of truth
+case "$update" in
+*"\"success\":false"*)
+  >&2 echo -e "[Cloudflare DDNS] Update failed for $record_identifier. DUMPING RESULTS:\n$update"
+  exit 1;;
+*)
+  echo "[Cloudflare DDNS] IPv6 address '$ip' has been synced to Cloudflare.";;
+esac

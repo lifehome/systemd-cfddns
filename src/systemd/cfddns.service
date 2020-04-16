@@ -1,0 +1,7 @@
+[Unit]
+Description=Cloudflare DDNS service
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/cfupdater
