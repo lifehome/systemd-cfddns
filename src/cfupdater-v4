@@ -9,6 +9,11 @@ auth_email="john.appleseed@example.org"            # The email used to login 'ht
 auth_key="f1nd7h47fuck1n6k3y1ncl0udfl4r3c0n50l3"   # Top right corner, "My profile" > "Global API Key"
 
 # API Token (Recommended)
+#####                                                                             #####
+# WARNING: If you put any value inside the API Token variable,                        #
+#            the script will automatically use the token and omit the Global API key, #
+#            regardless if the Global API key is defined or not.                      #
+#####                                                                             #####
 auth_token="xxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # Domain and DNS record for synchronization
