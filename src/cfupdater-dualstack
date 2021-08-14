@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Forked by benkulbertis/cloudflare-update-record.sh
+# Forked from benkulbertis/cloudflare-update-record.sh
 # CHANGE THESE
 auth_email="john.appleseed@example.org"            # The email used to login 'https://dash.cloudflare.com'
 auth_key="f1nd7h47fuck1n6k3y1ncl0udfl4r3c0n50l3"   # Top right corner, "My profile" > "Global API Key"
