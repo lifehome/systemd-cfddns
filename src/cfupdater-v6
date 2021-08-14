@@ -2,8 +2,16 @@
 
 # Forked from benkulbertis/cloudflare-update-record.sh
 # CHANGE THESE
+
+# Global API Key (Deprecated + Dangerous)
+# Note: Please be caution as the Global API key can have unlimited access to **all** domain and features in your account.
 auth_email="john.appleseed@example.org"            # The email used to login 'https://dash.cloudflare.com'
 auth_key="f1nd7h47fuck1n6k3y1ncl0udfl4r3c0n50l3"   # Top right corner, "My profile" > "Global API Key"
+
+# API Token (Recommended)
+auth_token="xxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Domain and DNS record for synchronization
 zone_identifier="f1nd7h3fuck1n6z0n31d3n71f13r4l50" # Can be found in the "Overview" tab of your domain
 record_name="ipv6.example.org"                     # Which record you want to be synced
 
