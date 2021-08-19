@@ -21,8 +21,8 @@ zone_identifier="f1nd7h3fuck1n6z0n31d3n71f13r4l50" # Can be found in the "Overvi
 record_name="dualstack.example.org"                # Which record you want to be synced
 
 # DO NOT CHANGE LINES BELOW
-ip4=$(curl -4 https://icanhazip.com/)
-ip6=$(curl -6 https://icanhazip.com/)
+ip4=$(curl -s4 https://icanhazip.com/)
+ip6=$(curl -s6 https://icanhazip.com/)
 
 # SCRIPT START
 echo "[Cloudflare DDNS] Check Initiated"
