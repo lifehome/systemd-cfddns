@@ -21,21 +21,29 @@ zone_identifier="f1nd7h3fuck1n6z0n31d3n71f13r4l50" # Can be found in the "Overvi
 record_name="dualstack.example.org"                # Which record you want to be synced
 
 # DO NOT CHANGE LINES BELOW
-ip4=$(curl -s4 https://icanhazip.com/)
-ip6=$(curl -s6 https://icanhazip.com/)
 
 # SCRIPT START
-echo "[Cloudflare DDNS] Check Initiated"
+echo -e "Check Initiated"
+
+# Check for current external network IP
+ip4=$(curl -s4 https://icanhazip.com/)
+ip6=$(curl -s6 https://icanhazip.com/)
+if [[ ! -z "${ip4}" && ! -z "${ip6}" ]]; then
+  echo -e "  > Fetched current external network IPv4 address: ${ip4}"
+  echo -e "  > Fetched current external network IPv6 address: ${ip6}"
+else
+  >&2 echo -e "Network error, cannot fetch external network IP."
+fi
 
 # The execution of update
 if [[ ! -z "${auth_token}" ]]; then
-  header_auth_paramheader=( -H "Authorization: Bearer ${auth_token}" )
+  header_auth_paramheader=( -H '"Authorization: Bearer '${auth_token}'"' )
 else
-  header_auth_paramheader=( -H "X-Auth-Email: ${auth_email}" -H "X-Auth-Key: ${auth_key}" )
+  header_auth_paramheader=( -H '"X-Auth-Email: '${auth_email}'"' -H '"X-Auth-Key: '${auth_key}'"' )
 fi
 
 # Seek for the record
-seek_current_dns_value_cmd=( curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zone_identifier}/dns_records?name=${record_name}&type=._._seek_dns_type_._." "${header_auth_paramheader[@]}" -H 'Content-Type: application/json' )
+seek_current_dns_value_cmd=( curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zone_identifier}/dns_records?name=${record_name}&type=._._seek_dns_type_._." "${header_auth_paramheader[@]}" -H '"Content-Type: application/json"' )
 record4="${seek_current_dns_value_cmd//._._seek_dns_type_._./A}"
 record6="${seek_current_dns_value_cmd//._._seek_dns_type_._./AAAA}"
 
@@ -61,9 +69,9 @@ record4_identifier=$(echo "${record4}" | sed 's/.*"id":"//;s/".*//')
 record6_identifier=$(echo "${record6}" | sed 's/.*"id":"//;s/".*//')
 
 # The secret sause for executing the update
-json_data_v4='{"id":"'${zone_identifier}'","type":"A","proxied":false,"name":"'${record_name}'","content":"'${ip4}'","ttl":120}'
-json_data_v6='{"id":"'${zone_identifier}'","type":"AAAA","proxied":false,"name":"'${record_name}'","content":"'${ip6}'","ttl":120}'
-update_cmd=( curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/${zone_identifier}/dns_records/${record4_identifier}" "${header_auth_paramheader[@]}" -H 'Content-Type: application/json' )
+json_data_v4="'"'{"id":"'${zone_identifier}'","type":"A","proxied":false,"name":"'${record_name}'","content":"'${ip4}'","ttl":120}'"'"
+json_data_v6="'"'{"id":"'${zone_identifier}'","type":"AAAA","proxied":false,"name":"'${record_name}'","content":"'${ip6}'","ttl":120}'"'"
+update_cmd=( curl -s -X PUT '"https://api.cloudflare.com/client/v4/zones/'${zone_identifier}'/dns_records/'${record4_identifier}'"' "${header_auth_paramheader[@]}" -H '"Content-Type: application/json"' )
 
 # Execution result
 update4="${update_cmd[@]}" --data "$json_data_v4"

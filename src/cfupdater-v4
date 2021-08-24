@@ -21,52 +21,65 @@ zone_identifier="f1nd7h3fuck1n6z0n31d3n71f13r4l50" # Can be found in the "Overvi
 record_name="ipv4.example.org"                     # Which record you want to be synced
 
 # DO NOT CHANGE LINES BELOW
-ip=$(curl -s4 https://icanhazip.com/)
 
 # SCRIPT START
-echo "[Cloudflare DDNS] Check Initiated"
+echo -e "Check Initiated"
+
+# Check for current external network IP
+ip=$(curl -s4 https://icanhazip.com/)
+if [[ ! -z "${ip}" ]]; then
+  echo -e "  > Fetched current external network IP: ${ip}"
+else
+  >&2 echo -e "Network error, cannot fetch external network IP."
+fi
 
 # The execution of update
 if [[ ! -z "${auth_token}" ]]; then
-  header_auth_paramheader=( -H "Authorization: Bearer ${auth_token}" )
+  header_auth_paramheader=( -H '"Authorization: Bearer '${auth_token}'"' )
 else
-  header_auth_paramheader=( -H "X-Auth-Email: ${auth_email}" -H "X-Auth-Key: ${auth_key}" )
+  header_auth_paramheader=( -H '"X-Auth-Email: '${auth_email}'"' -H '"X-Auth-Key: '${auth_key}'"' )
 fi
 
 # Seek for the record
-seek_current_dns_value_cmd=( curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zone_identifier}/dns_records?name=${record_name}&type=._._seek_dns_type_._." "${header_auth_paramheader[@]}" -H 'Content-Type: application/json' )
-record="${seek_current_dns_value_cmd//._._seek_dns_type_._./A}"
+seek_current_dns_value_cmd=( curl -s -X GET '"https://api.cloudflare.com/client/v4/zones/'${zone_identifier}'/dns_records?name='${record_name}'&type=A"' "${header_auth_paramheader[@]}" -H '"Content-Type: application/json"' )
+record=`eval ${seek_current_dns_value_cmd[@]}`
 
 # Can't do anything without the record
-if [[ "${record}" == *'"count":0'* ]]; then
-  >&2 echo -e "[Cloudflare DDNS] Record does not exist, perhaps create one first?"
+if [[ -z "${record}" ]]; then
+  >&2 echo -e "Network error, cannot fetch DNS record."
+  exit 1
+elif [[ "${record}" == *'"count":0'* ]]; then
+  >&2 echo -e "Record does not exist, perhaps create one first?"
   exit 1
 fi
 
+# Set the record identifier from result
+record_identifier=`echo "${record}" | sed 's/.*"id":"//;s/".*//'`
+
 # Set existing IP address from the fetched record
-old_ip=$(echo "${record}" | sed 's/.*"content":"//;s/".*//')
+old_ip=`echo "${record}" | sed 's/.*"content":"//;s/".*//'`
+echo -e "  > Fetched current DNS record value   : ${old_ip}"
 
 # Compare if they're the same
 if [ "${ip}" == "${old_ip}" ]; then
-  echo "[Cloudflare DDNS] IP has not changed."
+  echo -e "Update for A record '${record_name} (${record_identifier})' cancelled.\n  Reason: IP has not changed."
   exit 0
+else
+  echo -e "  > Different IP addresses detected, synchronizing..."
 fi
 
-# Set the record identifier from result
-record_identifier=$(echo "${record}" | sed 's/.*"id":"//;s/".*//')
-
 # The secret sause for executing the update
-json_data_v4='{"id":"'${zone_identifier}'","type":"A","proxied":false,"name":"'${record_name}'","content":"'${ip4}'","ttl":120}'
-update_cmd=( curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/${zone_identifier}/dns_records/${record4_identifier}" "${header_auth_paramheader[@]}" -H 'Content-Type: application/json' )
+json_data_v4="'"'{"id":"'${zone_identifier}'","type":"A","proxied":false,"name":"'${record_name}'","content":"'${ip}'","ttl":120}'"'"
+update_cmd=( curl -s -X PUT '"https://api.cloudflare.com/client/v4/zones/'${zone_identifier}'/dns_records/'${record_identifier}'"' "${header_auth_paramheader[@]}" -H '"Content-Type: application/json"' )
 
 # Execution result
-update="${update_cmd[@]}" --data "$json_data_v4"
+update=`eval ${update_cmd[@]} --data $json_data_v4`
 
 # The moment of truth
 case "$update" in
-*'"success":false'*)
-  >&2 echo -e "[Cloudflare DDNS] Update failed for ${record_identifier}.\n\nDUMPING RESULTS:\n${update}"
-  exit 1;;
+*'"success":true'*)
+  echo -e "Update for A record '${record_name} (${record_identifier})' succeeded.\n  - Old value: ${old_ip}\n  + New value: ${ip}";;
 *)
-  echo "[Cloudflare DDNS] IPv4 context '${ip}' has been synced to Cloudflare.";;
+  >&2 echo -e "Update for A record '${record_name} (${record_identifier})' failed.\nDUMPING RESULTS:\n${update}"
+  exit 1;;
 esac
