@@ -43,44 +43,73 @@ else
 fi
 
 # Seek for the record
-seek_current_dns_value_cmd=( curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zone_identifier}/dns_records?name=${record_name}&type=._._seek_dns_type_._." "${header_auth_paramheader[@]}" -H '"Content-Type: application/json"' )
-record4="${seek_current_dns_value_cmd//._._seek_dns_type_._./A}"
-record6="${seek_current_dns_value_cmd//._._seek_dns_type_._./AAAA}"
+seek_current_dns_value_cmd=( curl -s -X GET '"https://api.cloudflare.com/client/v4/zones/'${zone_identifier}'/dns_records?name='${record_name}'&type=__type__"' "${header_auth_paramheader[@]}" -H '"Content-Type: application/json"' )
+record4=`eval ${seek_current_dns_value_cmd[@]//__type__/A}`
+record6=`eval ${seek_current_dns_value_cmd[@]//__type__/AAAA}`
 
-# Can't do anything without both record
-if [[ "${record4}" == *'"count":0'* || "${record6}" == *'"count\":0'* ]]; then
-  >&2 echo -e "[Cloudflare DDNS] Dual stack records do not exist, perhaps create them first?"
+# Can't do anything without the record
+if [[ -z "${record4}" || -z "${record6}" ]]; then
+  >&2 echo -e "Network error, cannot fetch DNS record."
   exit 1
-fi
-
-# Set existing IP address from the fetched record
-old_ip4=$(echo "${record4}" | sed 's/.*"content":"//;s/".*//')
-old_ip6=$(echo "${record6}" | sed 's/.*"content":"//;s/".*//')
-
-# Compare either one is the same
-# NOTE: The script will update even one IP remains the same.
-if [[ "${ip4}" == "${old_ip4}" && "${ip6}" == "${old_ip6}" ]]; then
-  echo "[Cloudflare DDNS] IPs have not changed."
-  exit 0
+elif [[ "${record4}" == *'"count":0'* || "${record6}" == *'"count":0'* ]]; then
+  >&2 echo -e "Record does not exist, perhaps create one first?"
+  exit 1
 fi
 
 # Set the record identifier from result
-record4_identifier=$(echo "${record4}" | sed 's/.*"id":"//;s/".*//')
-record6_identifier=$(echo "${record6}" | sed 's/.*"id":"//;s/".*//')
+record_identifier4=`echo "${record4}" | sed 's/.*"id":"//;s/".*//'`
+record_identifier6=`echo "${record6}" | sed 's/.*"id":"//;s/".*//'`
+
+# Set existing IP address from the fetched record
+old_ip4=`echo "${record4}" | sed 's/.*"content":"//;s/".*//'`
+old_ip6=`echo "${record6}" | sed 's/.*"content":"//;s/".*//'`
+echo -e "  > Fetched current IPv4 address DNS record value: ${old_ip4}"
+echo -e "  > Fetched current IPv6 address DNS record value: ${old_ip6}"
+
+# Compare if they're the same
+echo -e "Update for A record '${record_name} (${record_identifier4})' started."
+if [ "${ip4}" == "${old_ip4}" ]; then
+  echo -e "  > IPv4 has not changed. Aborting..."
+else
+  echo -e "  > Different IPv4 addresses detected, synchronizing..."
+fi
+
+echo -e "Update for AAAA record '${record_name} (${record_identifier6})' started."
+if [ "${ip6}" == "${old_ip6}" ]; then
+  echo -e "  > IPv6 has not changed. Aborting..."
+else
+  echo -e "  > Different IPv6 addresses detected, synchronizing..."
+fi
+
+if [ "${ip4}" == "${old_ip4}" ] && [ "${ip6}" == "${old_ip6}" ]; then
+  exit 0
+fi
 
 # The secret sause for executing the update
-json_data_v4="'"'{"id":"'${zone_identifier}'","type":"A","proxied":false,"name":"'${record_name}'","content":"'${ip4}'","ttl":120}'"'"
-json_data_v6="'"'{"id":"'${zone_identifier}'","type":"AAAA","proxied":false,"name":"'${record_name}'","content":"'${ip6}'","ttl":120}'"'"
-update_cmd=( curl -s -X PUT '"https://api.cloudflare.com/client/v4/zones/'${zone_identifier}'/dns_records/'${record4_identifier}'"' "${header_auth_paramheader[@]}" -H '"Content-Type: application/json"' )
+json_data_v4="'"'{"id":"'${zone_identifier}'","type":"A","proxied":true,"name":"'${record_name}'","content":"'${ip4}'","ttl":1}'"'"
+json_data_v6="'"'{"id":"'${zone_identifier}'","type":"AAAA","proxied":true,"name":"'${record_name}'","content":"'${ip6}'","ttl":1}'"'"
+update_cmd=( curl -s -X PUT '"https://api.cloudflare.com/client/v4/zones/'${zone_identifier}'/dns_records/'__record_identifier__'"' "${header_auth_paramheader[@]}" -H '"Content-Type: application/json"' )
 
 # Execution result
-update4="${update_cmd[@]}" --data "$json_data_v4"
-update6="${update_cmd[@]}" --data "$json_data_v6"
-
-# The moment of truth
-if [[ "${update4}" == *'"success":false'* || "${update6}" == *'"success":false'* ]]; then
-  >&2 echo -e "[Cloudflare DDNS] Update failed for '${record4_identifier}' and '${record6_identifier}'.\n\nDUMPING RESULTS:\n${update4}\n\n${update6}"
-  exit 1
-else
-  echo "[Cloudflare DDNS] IPv4 address '${ip4}' and IPv6 address '${ip6}' has been synced to Cloudflare."
+if [ ! "${ip4}" == "${old_ip4}" ]; then
+  update4=`eval ${update_cmd[@]//__record_identifier__/${record_identifier4}} --data $json_data_v4`
+  case "$update4" in
+  *'"success":true'*)
+    echo -e "Update for A record '${record_name} (${record_identifier4})' succeeded.\n  - Old value: ${old_ip4}\n  + New value: ${ip4}";;
+  *)
+    >&2 echo -e "Update for A record '${record_name} (${record_identifier4})' failed.\nDUMPING RESULTS:\n${update4}"
+    exit 1;;
+  esac
 fi
+
+if [ ! "${ip6}" == "${old_ip6}" ]; then
+  update6=`eval ${update_cmd[@]//__record_identifier__/${record_identifier6}} --data $json_data_v6`
+  case "$update6" in
+  *'"success":true'*)
+    echo -e "Update for AAAA record '${record_name} (${record_identifier6})' succeeded.\n  - Old value: ${old_ip6}\n  + New value: ${ip6}";;
+  *)
+    >&2 echo -e "Update for AAAA record '${record_name} (${record_identifier6})' failed.\nDUMPING RESULTS:\n${update6}"
+    exit 1;;
+  esac
+fi
+
