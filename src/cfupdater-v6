@@ -56,6 +56,9 @@ elif [[ "${record}" == *'"count":0'* ]]; then
   exit 1
 fi
 
+# Set the record identifier from result
+record_identifier=`echo "${record}" | sed 's/.*"id":"//;s/".*//'`
+
 # Compare if they're the same
 if [ "${ip}" == "${old_ip}" ]; then
   echo -e "Update for AAAA record '${record_name} (${record_identifier})' cancelled.\n  Reason: IP has not changed."
