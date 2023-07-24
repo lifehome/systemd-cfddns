@@ -8,14 +8,6 @@
 auth_email="Youruser@gmail.com"            # The email used to login 'https://dash.cloudflare.com'
 auth_key="Your Global API Key"   # Top right corner, "My profile" > "Global API Key"
 
-# API Token (Recommended)
-#####                                                                             #####
-# WARNING: If you put any value inside the API Token variable,                        #
-#            the script will automatically use the token and omit the Global API key, #
-#            regardless if the Global API key is defined or not.                      #
-#####                                                                             #####
-auth_token=""
-
 # Domain and DNS record for synchronization
 zone_identifier="Overview" # Can be found in the "Overview" tab of your domain
 record_name="record_name"                     # Which record you want to be synced
